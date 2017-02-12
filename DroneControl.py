@@ -7,156 +7,129 @@ Created on Sun Feb 05 12:10:27 2017
 license: GPL
 """
 
-import serial, time, msvcrt, threading
+import serial
+import time
+import threading
+import msvcrt
+from command.Drone import DroneCommand
+from command.FlightParam import FlightParamCommand
 
-class FlightParamCommand:
-    
-    def __init__(self, throttle = 1000, aileron = 1500, elevator = 1500, rudder = 1500):
-        self.throttle = throttle
-        self.aileron = aileron
-        self.elevator = elevator
-        self.rudder = rudder
-        
-        if self.throttle < 1000:
-            self.throttle = 1000
-        if self.aileron < 1500:
-            self.aileron = 1500
-        if self.elevator < 1500:
-            self.elevator = 1500
-        if self.rudder < 1500:
-            self.rudder = 1500
-    
-    def __repr__(self):
-        return "FP"
- 
-class _FlightParamResponse:
-    def __init__(self, data):
-        self.isValid = False
-        
-        elems = data.split(";")
-        
-        if len(elems) == 5:
-            self.throttle = int(elems[0])
-            self.aileron = int(elems[1])
-            self.elevator = int(elems[2])
-            self.rudder = int(elems[3])
-            
-            self.isValid = True
-        
-    def verify(self, command):        
-        result = False
-        if isinstance(command, FlightParamCommand):
-            if command.aileron == self.aileron and command.elevator == self.elevator and command.rudder == self.rudder and command.throttle == self.throttle:
-                result = True
-        return result
-    
 
 class DroneControl(threading.Thread):
-    
-    def __sendFlightParams(self, throttle, aileron, elevator, rudder):
-        command = "%i,%i,%i,%i"% (throttle, aileron, elevator, rudder)
-        
-        print "[PC] -> [AU] (FP): " + command
-        
-        self.arduino.write(command + "\n")
-        
-        
+
     def __processResponse(self, data):
         if "selecting protocol" in data:
             self.__isReady = False
             self.__isProcessing = True
             return
         if "init protocol complete" in data:
+            print "[PC]: Waiting to establish signal..."
+            time.sleep(15)
+            print "[PC]: done!"
             self.__isReady = True
             self.__isProcessing = False
             return
-        
-        # identify response
-        resp = _FlightParamResponse(data)
-        if resp.isValid:
-            if resp.verify(self.__commandsQ[0]):
-                self.__isProcessing = False
-                del self.__commandsQ[0]
-                if not self.__commandsQ:
-                    print "Q: []"
-            else:
-                print "Response not verified!"
-            
-    
+
+        if self.__commandsQ and self.__commandsQ[0]:
+            command = self.__commandsQ[0]
+            command.response.process(self, data)
+            self.__isProcessing = False
+            del self.__commandsQ[0]
+            if not self.__commandsQ:
+                print "Q: []"
+
     def __readResponse(self):
         data = self.arduino.readline()
-        
+
         if data:
             print "[PC] <- [AU]: " + data
             self.__processResponse(data)
-            
-    
+
     def __closeControl(self):
         # close the connection
         self.arduino.close()
         # re-open the serial port which will also reset the Arduino Uno and
-        # this forces the quadcopter to power off when the radio loses conection. 
-        self.arduino=serial.Serial(self.comPort, 115200, timeout = .01)
+        # this forces the quadcopter to power off when the radio loses
+        # conection.
+        self.arduino = serial.Serial(self.comPort, 115200, timeout=.01)
         self.arduino.close()
-        # close it again so it can be reopened the next time it is run. 
-        
-        
+        # close it again so it can be reopened the next time it is run.
+
     def __controlSequence(self):
-        
         try:
             while True:
                 self.__readResponse()
-                
-                if(not self.__isProcessing and self.__isReady and not len(self.__commandsQ) == 0):
+
+                if(not self.__isProcessing and self.__isReady and
+                        not len(self.__commandsQ) == 0):
                     print "Q: " + repr(self.__commandsQ)
                     command = self.__commandsQ[0]
-                    if isinstance(command, FlightParamCommand):
-                        self.__sendFlightParams(command.throttle, command.aileron, command.elevator, command.rudder)
-                        self.__isProcessing = True
-                
+                    command.execute(self, self.arduino)
+                    self.__isProcessing = True
+
+                # TODO: Temporary
                 if msvcrt.kbhit():
                     key = ord(msvcrt.getch())
-                    
-                    if key == 27: #ESC
+                    if key == 27:  # ESC
                         print "[PC]: ESC exiting"
                         break
-                    
         finally:
             self.__closeControl()
-            
-    
+
     def __init__(self, comPort):
         threading.Thread.__init__(self)
         self.comPort = comPort
-        
         self.__isReady = False
         self.__isProcessing = True
         self.__commandsQ = []
-        
 
-    def run(self):        
-        print "run()"
-        
-        self.arduino = serial.Serial(self.comPort, 115200, timeout = .01)
-        time.sleep(1) #give the connection a second to settle
-        
+    def run(self):
+        print "[PC]: Starting up"
+        self.arduino = serial.Serial(self.comPort, 115200, timeout=.01)
+        time.sleep(1)  # give the connection a second to settle
         self.__controlSequence()
-        
-        
+
     def execute(self, command):
         # Only accept supported commands
-        if isinstance(command, FlightParamCommand):            
+        if isinstance(command, DroneCommand):
             self.__commandsQ.append(command)
         else:
-            raise ValueError("Command is not supported! command = " + command)    
+            raise ValueError("Command is not supported! command = " + command)
+
+    def isReady(self):
+        return self.__isReady
 
 
 if __name__ == "__main__":
-    control = DroneControl("COM3")
-    
+    control = DroneControl("COM5")
+
     control.start()
-    
-    for i in [0, 10, 20, 30, 40, 50, 60, 70]:
-        cmd = FlightParamCommand(1000 + i)
-        control.execute(cmd)
-    
+
+    while not control.isReady():
+        pass
+
+    while True:
+        try:
+            kinput = raw_input("CMD:")
+            if "exit" in kinput:
+                print "Exiting"
+                break
+
+            elif "read" in kinput:
+                f = open("drone_commands.txt", "r")
+                j = 0
+                cmd = None
+                waitTime = 0.0
+
+                for line in f:
+                    if j % 2 == 0:
+                        cmdParams = line.split(",")
+                        cmd = FlightParamCommand(int(cmdParams[0]))
+                        j += 1
+                    else:
+                        waitTime = float(line)
+                        control.execute(cmd)
+                        time.sleep(waitTime)
+                        j = 0
+        except:
+            print "Invalid input! Try again!"
