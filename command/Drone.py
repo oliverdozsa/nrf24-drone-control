@@ -6,15 +6,21 @@ Created on Sun Feb 12 21:27:50 2017
 """
 
 
-class DroneResponse:
+class DroneResponse(object):
+    def __init__(self):
+        pass
+
     def process(self, drone_control, data):
         pass
 
 
-class DroneCommand:
+class DroneCommand(object):
+    def __init__(self):
+        pass
+
     def execute(self, drone_control, arduino):
         pass
 
     @property
     def response(self):
-        pass
+        return DroneResponse()

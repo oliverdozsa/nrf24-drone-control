@@ -10,6 +10,10 @@ from Drone import DroneCommand
 class FlightParamResponse:
     def __init__(self, command):
             self.command = command
+            self.throttle = 0
+            self.aileron = 0
+            self.elevator = 0
+            self.rudder = 0
 
     def process(self, drone_control, data):
         elems = data.split(";")
@@ -31,6 +35,8 @@ class FlightParamCommand(DroneCommand):
 
     def __init__(self, throttle=1000, aileron=1500, elevator=1500,
                  rudder=1500):
+        super(FlightParamCommand, self).__init__()
+
         self.throttle = throttle
         self.aileron = aileron
         self.elevator = elevator
