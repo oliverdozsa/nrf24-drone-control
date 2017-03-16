@@ -14,9 +14,11 @@ import msvcrt
 from command.Drone import DroneCommand
 from command.DroneSequence import Actions
 from command.DroneSequence import DroneSequenceCommand
-from command.FlightParam import FlightParamCommand
 from command.Sleep import SleepCommand
+from command.DroneSequence import LAND_SEQ
+from command.DroneSequence import LIFTOFF_SEQ
 import traceback
+import sys
 
 
 class DroneControl(threading.Thread):
@@ -120,6 +122,32 @@ class DroneControl(threading.Thread):
     def is_ready(self):
         return self.__isReady
 
+def calib_array_kb(array_in):
+    mod_array = array_in
+    print "Entering array calib"
+    print str(mod_array)
+    sys.stdout.flush()
+    i = 0
+
+    while True:
+        if msvcrt.kbhit():
+            key_v = ord(msvcrt.getch())
+            if key_v == 120:  # x
+                print "Leaving array calib"
+                break
+            elif key_v == 119:  # w
+                mod_array[i] += 10
+            elif key_v == 115:  # s
+                mod_array[i] -= 10
+            elif key_v == 97:  # a
+                i = (i-1) % 4
+            elif key_v == 100:  # d
+                i = (i+1) % 4
+
+            print "\r" + str(mod_array),
+            sys.stdout.flush()
+
+    return mod_array
 
 if __name__ == "__main__":
     control = DroneControl("COM3")
@@ -131,30 +159,34 @@ if __name__ == "__main__":
 
     while True:
         try:
-            kinput = raw_input("CMD:")
-            if "exit" in kinput:
-                print "Exiting"
-                break
+            if msvcrt.kbhit():
+                key = ord(msvcrt.getch())
+                if key == 119:  # w
+                    drone_cmd = DroneSequenceCommand(Actions.LIFTOFF, 0.0)
+                    control.execute(drone_cmd)
+                elif key == 115:  # s
+                    drone_cmd = DroneSequenceCommand(Actions.LAND, 0.0)
+                    control.execute(drone_cmd)
+                elif key == 99:  # c
+                    print "Entered calib mode"
+                    while True:
+                        if msvcrt.kbhit():
+                            calib_key = ord(msvcrt.getch())
 
-            elif "read" in kinput:
-                f = open("drone_commands.txt", "r")
-                j = 0
-                cmd = None
-                waitTime = 0.0
+                            if calib_key == 99:  # c
+                                print "Leaving calib mode"
+                                break
+                            elif calib_key == 114:  # r
+                                LIFTOFF_SEQ[0] = calib_array_kb(LIFTOFF_SEQ[0])
+                            elif calib_key == 116:  # t
+                                LIFTOFF_SEQ[1] = calib_array_kb(LIFTOFF_SEQ[1])
+                            elif calib_key == 103:  # g
+                                LIFTOFF_SEQ[1][0] -= 10
+                                print "LO:" + str(LIFTOFF_SEQ[0])
+                                print "LO:" + str(LIFTOFF_SEQ[1])
+                elif key == 27:  # ESC
+                    break
 
-                for line in f:
-                    if j % 2 == 0:
-                        cmdParams = line.split(",")
-                        cmd = FlightParamCommand(int(cmdParams[0]))
-                        j += 1
-                    else:
-                        waitTime = float(line)
-                        control.execute(cmd)
-                        time.sleep(waitTime)
-                        j = 0
-            elif "drone" in kinput:
-                drone_cmd = DroneSequenceCommand(Actions.LIFTOFF, 0.0)
-                control.execute(drone_cmd)
         except Exception as e:
             traceback.print_exc()
             print "Invalid input! Try again!"

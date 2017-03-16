@@ -8,14 +8,15 @@ from FlightParam import FlightParamCommand
 from Sleep import SleepCommand
 
 # Group of five numbers; first four is FlighParam, the 5th is time.
-_LIFTOFF_SEQ = [
-    [1420, 1500, 1500, 1500, 3],
-    [1300, 1500, 1500, 1500, 1]
+LIFTOFF_SEQ = [
+    [1470, 1480, 1510, 1500, 2],
+    [1420, 1480, 1510, 1500, 1]
 ]
 
-_LAND_SEQ = [
-    [1200, 1500, 1500, 1500, 1],
-    [1050, 1500, 1500, 1500, 1]
+LAND_SEQ = [
+    [1200, 1500, 1500, 1500, 0.5],
+    [1050, 1500, 1500, 1500, 0.5],
+    [1000, 1500, 1500, 1500, 1]
 ]
 
 
@@ -46,7 +47,15 @@ class DroneSequenceCommand(DroneCommand):
 
     def execute(self, drone_control, arduino):
         if self.action == Actions.LIFTOFF:
-            for param in _LIFTOFF_SEQ:
+            for param in LIFTOFF_SEQ:
+                flight_cmd = FlightParamCommand(param[0], param[1], param[2], param[3])
+                sleep_cmd = SleepCommand(param[4])
+
+                drone_control.execute(flight_cmd)
+                drone_control.execute(sleep_cmd)
+
+        if self.action == Actions.LAND:
+            for param in LAND_SEQ:
                 flight_cmd = FlightParamCommand(param[0], param[1], param[2], param[3])
                 sleep_cmd = SleepCommand(param[4])
 

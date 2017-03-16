@@ -33,8 +33,7 @@ class FlightParamResponse:
 
 class FlightParamCommand(DroneCommand):
 
-    def __init__(self, throttle=1000, aileron=1500, elevator=1500,
-                 rudder=1500):
+    def __init__(self, throttle=1000, aileron=1500, elevator=1500, rudder=1500):
         super(FlightParamCommand, self).__init__()
 
         self.throttle = throttle
@@ -44,12 +43,12 @@ class FlightParamCommand(DroneCommand):
 
         if self.throttle < 1000:
             self.throttle = 1000
-        if self.aileron < 1500:
-            self.aileron = 1500
-        if self.elevator < 1500:
-            self.elevator = 1500
-        if self.rudder < 1500:
-            self.rudder = 1500
+        if self.aileron < 1000:
+            self.aileron = 1000
+        if self.elevator < 1000:
+            self.elevator = 1000
+        if self.rudder < 1000:
+            self.rudder = 1000
 
     def execute(self, drone_control, arduino):
         command = "%i,%i,%i,%i" % (self.throttle, self.aileron,
